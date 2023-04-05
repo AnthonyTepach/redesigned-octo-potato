@@ -2,6 +2,9 @@ import { jsPDF } from "jspdf";
 import axios from "axios";
 import "jspdf-autotable";
 import fs from "fs";
+import dotenv from 'dotenv';
+dotenv.config();
+
 
 // URL de la API
 // URL de la imagen de fondo
@@ -104,7 +107,7 @@ function addPunchTimesTable(doc, employee, startY) {
 }
 function getReport(REPORT_TYPE, START_DATE, END_DATE) {
   axios
-    .get("http://192.168.1.8:3000/api/consulta", {
+    .get(process.env.API_URL, {
       params: {
         departamento: REPORT_TYPE,
         fecha_inicio: START_DATE,
