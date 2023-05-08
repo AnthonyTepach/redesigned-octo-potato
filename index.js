@@ -2,29 +2,36 @@ import { jsPDF } from "jspdf";
 import axios from "axios";
 import "jspdf-autotable";
 import fs from "fs";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
-
 
 // URL de la API
 // URL de la imagen de fondo
-const BACKGROUND_IMAGE_PATH = "./fondo.jpg";
+const meses = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
 
 function imageToBase64(filePath) {
   const imageData = fs.readFileSync(filePath);
   return imageData.toString("base64");
 }
-function getMonthName(dateString) {
-  const date = new Date(dateString);
-  const arr = dateString.split("-");
-  const options = { month: "long" };
-  return (
-    arr[2] +
-    " de " +
-    date.toLocaleString("es", options).toLowerCase() +
-    " de " +
-    arr[0]
-  );
+function obtenerNumeroSemana(fecha) {
+  const fechanueva = new Date(fecha);
+  const primerDia = new Date(fechanueva.getFullYear(), 0, 1);
+  const diferencia = (fechanueva - primerDia) / 86400000;
+  const numeroSemana = Math.ceil((diferencia + primerDia.getDay() + 1) / 7);
+  return numeroSemana.toString();
 }
 function addBackgroundImage(doc, image_path) {
   if (image_path && fs.existsSync(image_path)) {
@@ -40,21 +47,35 @@ function addBackgroundImage(doc, image_path) {
   }
 }
 function addEmployeeInfo(doc, employee, startDate, endDate) {
-  doc.text(6, 0.7, "N° Empleado: " + employee.emp_code);
-  doc.text(6, 1, employee.position_name);
-  doc.text(6, 1.3, employee.dept_name);
+  doc.text(9.1, 1.64, employee.emp_code);
 
-  doc.text(
-    0.6,
-    1.6,
-    "Nombre: " + employee.first_name + " " + employee.last_name
-  );
+  if (employee.position_name.length < 20) {
+    doc.setFontSize(16);
+    doc.text(7.12, 1.64, employee.position_name);
+  } else {
+    doc.setFontSize(12);
+    doc.text(7.12, 1.64, employee.position_name);
+    doc.setFontSize(16);
+  }
+
+  //doc.text(6, 1.3, employee.dept_name);
+
+  doc.text(1.25, 1.64, employee.first_name + " " + employee.last_name);
+
+  doc.text(2.8, 2.04, startDate.split("-")[2]);
+
+  const fecha = new Date(endDate);
+  fecha.setDate(fecha.getDate() - 1);
+  var fechanueva = fecha.toISOString().substring(0, 10);
+  
+  doc.text(4, 2.04, fechanueva.split("-")[2]);
+  //console.log( obtenerNumeroSemana(fechanueva));
+  doc.text(1.35, 2.04, obtenerNumeroSemana(fechanueva));
+
+  doc.text(6.5, 2.04, meses[endDate.split("-")[1] - 1]);
+  doc.text(9.3, 2.04, endDate.split("-")[0]);
   doc.setFontSize(12);
-  doc.text(
-    0.6,
-    2,
-    "Registros del: " + getMonthName(startDate) + " al " + getMonthName(endDate)
-  );
+  doc.text(7.1, 6, employee.first_name + " " + employee.last_name);
   doc.setFontSize(16);
 }
 
@@ -70,15 +91,15 @@ function addEmployeePhoto(doc, emp_code) {
   let filePath = `./fotos/${emp_code}.png`;
   let exist = fs.existsSync(filePath)
     ? filePath
-    : "./fotos/avatar-de-perfil.png";
+    : process.env.AVATAR_IMAGE_PATH;
 
   doc.addImage(
     imageToBase64(exist),
     "PNG",
-    0.8,
-    doc.internal.pageSize.width,
+    doc.internal.pageSize.width - 3,
+    doc.internal.pageSize.height - 5.66,
     1.5,
-    1.5
+    2
   );
 }
 function addEmployeeSignature(employee, doc) {
@@ -90,21 +111,48 @@ function addEmployeeSignature(employee, doc) {
   doc.setFontSize(16);
 }
 
-function addPunchTimesTable(doc, employee, startY) {
+function addPunchTimesTables(doc, employee, startY) {
+  let color = [0, 0, 0];
+  if (employee.dept_name === "SEMANA") {
+    color = [60, 236, 218];
+  } else if (employee.dept_name === "QUINCENA") {
+    color = [241, 19, 34];
+  }
   const headers_punch_time = [["Fecha", "Hora", "Dispositivo"]];
   const data_punch_time = employee.punch_times.map((punch) => [
-    getMonthName(punch.fecha),
+    punch.fecha,
     punch.hora,
     punch.checo_en,
-  ]);
+  ]); 
 
+  // Divide los datos en dos conjuntos de filas
+  const firstRows = data_punch_time.slice(0, 13);
+  const secondRows = data_punch_time.slice(13);
+
+  // Crea la primera tabla
   doc.autoTable({
     head: headers_punch_time,
-    body: data_punch_time,
+    body: firstRows,
+    styles: { fontSize: 11 },
+    headStyles: { fontStyle: "bold", halign: "center", fillColor: color },
+    tableWidth: "wrap",
+    avoidFirstPage: true,
     startY: startY,
-    startX: 0,
+  });
+
+  // Crea la segunda tabla
+  doc.autoTable({
+    head: headers_punch_time,
+    body: secondRows,
+    styles: { fontSize: 11 },
+    headStyles: { fontStyle: "bold", halign: "center", fillColor: color },
+    tableWidth: "wrap",
+    avoidFirstPage: true,
+    startY: startY,
+    margin: { left: 3.5, right: 3.5 }, // La posición horizontal debe ser igual al ancho de la tabla anterior + 10
   });
 }
+
 function getReport(REPORT_TYPE, START_DATE, END_DATE) {
   axios
     .get(process.env.API_URL, {
@@ -117,31 +165,32 @@ function getReport(REPORT_TYPE, START_DATE, END_DATE) {
     .then((response) => {
       const data = response.data;
       const doc = new jsPDF({
-        orientation: "portrait",
+        orientation: "landscape",
         unit: "in",
         format: [8.5, 11],
       });
 
-      data.forEach((employee,index) => {
-        addBackgroundImage(doc, BACKGROUND_IMAGE_PATH);
+      data.forEach((employee, index) => {
+        if (REPORT_TYPE == "SEMANA") {
+          addBackgroundImage(doc, process.env.BACKGROUND_IMAGE_SEM);
+        } else if (REPORT_TYPE == "QUINCENA") {
+          addBackgroundImage(doc, process.env.BACKGROUND_IMAGE_QUI);
+        }
+
         addEmployeeInfo(doc, employee, START_DATE, END_DATE);
         addEmployeePhoto(doc, employee.emp_code);
-        addEmployeeSignature(employee, doc);
-        addConformityLegend(doc);
-        addPunchTimesTable(doc, employee, 2.1);
-       
-      });
-      doc.deletePage(1)
-      doc.save(`REPORTE_${REPORT_TYPE}_${START_DATE}_${END_DATE}.pdf`);
 
+        addPunchTimesTables(doc, employee, 2.5);
+      });
+      doc.deletePage(1);
+      doc.save(`REPORTE_${REPORT_TYPE}_${START_DATE}_${END_DATE}.pdf`);
     })
     .catch((error) => {
       console.error(error);
     });
 }
 
-
-
-getReport("QUINCENA", "2023-03-23", "2023-03-30");
-
-
+const fecha1 = "2023-04-28";
+const fecha2 = "2023-05-05";//poner un dia de más
+getReport("SEMANA", fecha1, fecha2);
+//getReport("QUINCENA", fecha1, fecha2);
