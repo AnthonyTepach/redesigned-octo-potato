@@ -72,7 +72,13 @@ function addEmployeeInfo(doc, employee, startDate, endDate) {
   //console.log( obtenerNumeroSemana(fechanueva));
   doc.text(1.35, 2.04, obtenerNumeroSemana(fechanueva));
 
-  doc.text(6.5, 2.04, meses[endDate.split("-")[1] - 1]);
+  if (endDate.split("-")[1]==startDate.split("-")[1]){
+    doc.text(6.5, 2.04, meses[endDate.split("-")[1] - 1]); // muestra el mes
+  }else{
+    //doc.text(6.5, 2.04, meses[endDate.split("-")[1] - 1]); // muestra el mes
+    doc.text(6.5, 2.04, "Noviembre"); // muestra el mes
+  }
+ 
   doc.text(9.3, 2.04, endDate.split("-")[0]);
   doc.setFontSize(12);
   doc.text(7.1, 6, employee.first_name + " " + employee.last_name);
@@ -156,6 +162,7 @@ function addPunchTimesTables(doc, employee, startY) {
 function getReport(REPORT_TYPE, START_DATE, END_DATE) {
   axios
     .get(process.env.API_URL, {
+    
       params: {
         departamento: REPORT_TYPE,
         fecha_inicio: START_DATE,
@@ -183,14 +190,14 @@ function getReport(REPORT_TYPE, START_DATE, END_DATE) {
         addPunchTimesTables(doc, employee, 2.5);
       });
       doc.deletePage(1);
-      doc.save(`REPORTE_${REPORT_TYPE}_${START_DATE}_${END_DATE}.pdf`);
+      doc.save(`imprimir/REPORTE_${REPORT_TYPE}_${START_DATE}_${END_DATE}.pdf`);
     })
     .catch((error) => {
       console.error(error);
     });
 }
 
-const fecha1 = "2023-04-28";
-const fecha2 = "2023-05-05";//poner un dia de más
+const fecha1 = "2023-11-24";
+const fecha2 = "2023-12-01";//poner un dia de más
 getReport("SEMANA", fecha1, fecha2);
-//getReport("QUINCENA", fecha1, fecha2);
+getReport("QUINCENA", fecha1, fecha2);
